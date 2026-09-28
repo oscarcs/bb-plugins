@@ -1,0 +1,179 @@
+/* Deep violet-indigo palette. The frame color is shared by the rail and every app top bar. */
+html.dark {
+  --bb-rail-frame: #1b1a40;
+  --bb-rail-canvas: #0e0c24;
+  --bb-rail-panel: #15132f;
+  --bb-rail-surface: #211d42;
+  --bb-rail-highlight: #393365;
+  --bb-rail-line: #423b65;
+  --bb-rail-text: #ece9ff;
+  --canvas: var(--bb-rail-canvas);
+  --ink: var(--bb-rail-text);
+  --background: var(--bb-rail-canvas);
+  --foreground: var(--bb-rail-text);
+  --card: var(--bb-rail-panel);
+  --card-foreground: var(--bb-rail-text);
+  --popover: var(--bb-rail-surface);
+  --popover-foreground: var(--bb-rail-text);
+  --primary: #c5b9ff;
+  --primary-foreground: #15112c;
+  --secondary: #2a254c;
+  --secondary-foreground: var(--bb-rail-text);
+  --accent: #342d5b;
+  --accent-foreground: var(--bb-rail-text);
+  --muted: #292443;
+  --muted-foreground: #b6add3;
+  --subtle-foreground: #9186b5;
+  --border: var(--bb-rail-line);
+  --border-hairline: #373154;
+  --border-seam: #302a4b;
+  --border-seam-vertical: #302a4b;
+  --input: #514a73;
+  --ring: #b9aaff;
+  --sidebar: var(--bb-rail-panel);
+  --sidebar-foreground: var(--bb-rail-text);
+  --sidebar-accent: var(--bb-rail-highlight);
+  --sidebar-accent-foreground: #fff;
+  --sidebar-border: var(--bb-rail-line);
+  --sidebar-ring: #b9aaff;
+  --surface-scrim: var(--bb-rail-frame);
+}
+
+html.dark body.bb-app-shell [data-testid$="-sidebar-top-reserve-row"],
+html.dark body.bb-app-shell header:has(> [data-testid="app-page-header-content-row"]) {
+  background: var(--bb-rail-frame);
+  box-shadow: none;
+  border-bottom-color: transparent;
+}
+
+/* The compose landing page has no page header, so carry the frame across its inset. */
+html.dark body.bb-app-shell.bb-rail-landing [data-sidebar="inset"] {
+  background-image: linear-gradient(to bottom, var(--bb-rail-frame) 48px, transparent 48px);
+}
+
+/* One divider avoids doubled lines and gaps where the sidebar meets a page header. */
+html.dark body.bb-app-shell::before {
+  content: "";
+  position: fixed;
+  z-index: 1001;
+  top: calc(var(--bb-app-chrome-row-height, 48px) - 1px);
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--bb-rail-line);
+  pointer-events: none;
+}
+
+/* External catalog headers retain a one-pixel sidebar seam through the top frame. */
+html.dark body.bb-app-shell.bb-rail-external-ready::after {
+  content: "";
+  position: fixed;
+  z-index: 1002;
+  top: 0;
+  left: calc(var(--bb-rail-external-sidebar-right) - 1px);
+  width: 3px;
+  height: calc(var(--bb-app-chrome-row-height, 48px) - 1px);
+  background: var(--bb-rail-frame);
+  pointer-events: none;
+}
+
+/* The hidden Automations thread pane leaves a scroll fade under the frame. */
+html.dark body.bb-app-shell.bb-rail-automations-page.bb-rail-native-visible::after {
+  content: "";
+  position: fixed;
+  z-index: 1000;
+  top: var(--bb-app-chrome-row-height, 48px);
+  left: 60px;
+  width: calc(var(--bb-rail-native-sidebar-right, 320px) - 60px);
+  height: 12px;
+  background: var(--sidebar);
+  pointer-events: none;
+}
+
+/* BB's sidebar panel border otherwise splits the continuous top frame. */
+@media (min-width: 768px) {
+  html.dark body.bb-app-shell [data-sidebar="panel"]:has(> [data-sidebar="sidebar"].bb-rail-shell) {
+    border-right-color: var(--bb-rail-frame);
+  }
+  html.dark body.bb-app-shell [data-sidebar="sidebar"].bb-rail-shell::after {
+    content: "";
+    position: absolute;
+    z-index: 40;
+    top: var(--bb-rail-top, 48px);
+    right: -1px;
+    bottom: 0;
+    width: 1px;
+    background: var(--bb-rail-line);
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 768px) {
+  [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) { position: relative; }
+  [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) > [data-testid="sidebar-navigation-region"] {
+    position: absolute; z-index: 30; top: var(--bb-rail-top, 44px); bottom: 0; left: 0;
+    width: 60px; overflow: visible; border-right: 1px solid var(--sidebar-border);
+    background: var(--bb-rail-frame, color-mix(in oklab, var(--sidebar) 80%, black));
+  }
+  [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) > [data-sidebar="content"],
+  [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) > [data-sidebar="footer"] { margin-left: 60px; }
+  [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) > [data-sidebar="content"] { padding-top: 49px; }
+  body.bb-rail-home [data-sidebar="sidebar"].bb-rail-shell:has(.bb-rail-nav) > [data-sidebar="content"] { padding-top: 8px; }
+  [data-sidebar="sidebar"].bb-rail-shell.bb-rail-automations > [data-sidebar="content"] { display: none; }
+}
+.bb-rail-nav { height: 100%; }
+.bb-rail-icons { display: flex; height: 100%; align-items: center; flex-direction: column; gap: 5px; padding: 10px 6px 12px; }
+.bb-rail-button { position: relative; display: flex; width: 44px; height: 44px; flex: none; align-items: center; justify-content: center; border: 0; border-radius: 11px; background: transparent; color: var(--sidebar-foreground); opacity: .72; cursor: pointer; }
+.bb-rail-button:hover, .bb-rail-button:focus-visible { opacity: 1; background: var(--sidebar-accent); outline: 2px solid transparent; }
+.bb-rail-button.bb-rail-selected { opacity: 1; background: var(--sidebar-accent); color: #fff; }
+.bb-rail-button:disabled { opacity: .35; cursor: default; }
+.bb-rail-icon { width: 20px; height: 20px; }
+.bb-rail-glyph { display: block; width: 20px; height: 20px; }
+.bb-rail-solid { display: none; }
+.bb-rail-selected .bb-rail-outline { display: none; }
+.bb-rail-selected .bb-rail-solid { display: block; }
+.bb-rail-tooltip { position: fixed; z-index: 2147483647; transform: translateY(-50%); padding: 5px 8px; border: 1px solid var(--sidebar-border); border-radius: 6px; background: var(--popover); color: var(--popover-foreground); font-size: 12px; font-weight: 600; white-space: nowrap; box-shadow: 0 5px 18px #0004; opacity: 0; pointer-events: none; }
+.bb-rail-tooltip-visible { opacity: 1; }
+.bb-rail-more { position: relative; margin-top: auto; }
+.bb-rail-more > summary { list-style: none; }
+.bb-rail-more > summary::-webkit-details-marker { display: none; }
+.bb-rail-menu { position: absolute; z-index: 80; bottom: 0; left: 53px; width: 215px; max-height: 60vh; overflow-y: auto; padding: 5px; border: 1px solid var(--sidebar-border); border-radius: 9px; background: var(--popover); box-shadow: 0 10px 30px #0005; }
+.bb-rail-menu button { display: flex; width: 100%; align-items: center; gap: 9px; padding: 8px 9px; border: 0; border-radius: 5px; background: transparent; color: var(--popover-foreground); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+.bb-rail-menu button:hover, .bb-rail-menu button:focus-visible { background: var(--accent); outline: none; }
+.bb-rail-menu button:disabled { opacity: .5; cursor: default; }
+.bb-rail-menu-icon { width: 16px; height: 16px; }
+.bb-rail-usage { position: absolute; z-index: 41; bottom: 12px; left: 216px; display: flex; width: calc(var(--bb-rail-panel-width, 260px) - 168px); min-width: 90px; max-width: 128px; flex-direction: column; gap: 3px; pointer-events: auto; }
+.bb-rail-usage-row { display: grid; grid-template-columns: minmax(0, 1fr) 24px 24px; align-items: center; gap: 4px; height: 12px; color: var(--muted-foreground); font-size: 9px; line-height: 12px; }
+.bb-rail-usage-track { display: block; height: 4px; overflow: hidden; border-radius: 4px; background: var(--bb-rail-line); }
+.bb-rail-usage-fill { display: block; height: 100%; border-radius: inherit; }
+.bb-rail-usage-codex .bb-rail-usage-fill { background: #78c9ff; }
+.bb-rail-usage-claude .bb-rail-usage-fill { background: #ef9b5e; }
+.bb-rail-usage-percent { color: var(--bb-rail-text); text-align: right; font-variant-numeric: tabular-nums; }
+.bb-rail-usage-reset { color: var(--subtle-foreground); text-align: right; font-variant-numeric: tabular-nums; }
+.bb-rail-panel-top { position: absolute; top: 0; left: 60px; display: flex; width: var(--bb-rail-panel-width, 220px); height: 49px; flex-direction: column; justify-content: center; padding: 6px 16px; background: var(--sidebar); }
+.bb-rail-home .bb-rail-panel-top { display: none; }
+.bb-rail-heading, .bb-rail-subheading { color: var(--muted-foreground) !important; font-size: 12px !important; font-weight: 600 !important; line-height: 20px !important; letter-spacing: .01em; }
+.bb-rail-new-thread { width: 100%; min-height: 31px; padding: 5px 8px; border: 1px solid var(--sidebar-border); border-radius: 7px; background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font: inherit; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; }
+.bb-rail-new-thread:hover, .bb-rail-new-thread:focus-visible { filter: brightness(1.08); outline: 1px solid var(--sidebar-ring); }
+.bb-rail-new-thread span { font-size: 14px; vertical-align: -1px; }
+.bb-rail-inline-new-thread { position: fixed; z-index: 45; display: flex; height: 24px; align-items: center; padding: 0 6px; border: 1px solid var(--bb-rail-line); border-radius: 5px; background: var(--bb-rail-surface); color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
+.bb-rail-inline-new-thread:hover, .bb-rail-inline-new-thread:focus-visible { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); outline: none; }
+body.bb-rail-home [data-sidebar="sidebar"] span:has(button[aria-label="Threads actions"]) { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+body.bb-rail-home button[aria-label="Threads actions"] { display: flex !important; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0 !important; border: 1px solid var(--bb-rail-line) !important; border-radius: 5px; background: var(--bb-rail-surface) !important; color: var(--muted-foreground) !important; opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+body.bb-rail-home button[aria-label="Threads actions"]:hover,
+body.bb-rail-home button[aria-label="Threads actions"]:focus-visible { background: var(--sidebar-accent) !important; color: var(--sidebar-accent-foreground) !important; outline: none; }
+body.bb-rail-home button[aria-label="New thread in Threads"] { display: none !important; }
+@media (min-width: 768px) {
+  .bb-rail-external-overlay { display: none; position: fixed; z-index: 1000; top: 48px; bottom: 0; left: 0; width: 60px; border-right: 1px solid var(--sidebar-border); background: var(--bb-rail-frame, color-mix(in oklab, var(--sidebar) 80%, black)); }
+  body.bb-rail-external .bb-rail-external-overlay,
+  body.bb-rail-collapsed .bb-rail-external-overlay,
+  body.bb-rail-transition-overlay .bb-rail-external-overlay { display: block; }
+  body.bb-rail-external .bb-rail-external-sidebar { box-sizing: border-box; padding-left: 60px; }
+  html.dark body.bb-rail-external .bb-rail-external-sidebar {
+    position: relative;
+    border-right-color: var(--bb-rail-frame);
+    background-image: linear-gradient(to bottom, var(--bb-rail-frame) 48px, transparent 48px);
+  }
+  html.dark body.bb-rail-external .bb-rail-external-sidebar::after { content: ""; position: absolute; top: 48px; right: -1px; bottom: 0; width: 1px; background: var(--bb-rail-line); pointer-events: none; }
+  body.bb-rail-external .bb-rail-back-link { display: none; }
+}
