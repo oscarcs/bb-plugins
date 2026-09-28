@@ -10,7 +10,7 @@ import {
 import type { ExperimentalSidebarNavigationItem } from "@get-bb/plugin-sdk/app";
 import "./rail.css";
 
-type Destination = "home" | "plugins" | "skills" | "automations";
+type Destination = "home" | "plugins" | "skills" | "automations" | "settings";
 const FEATURED: { id: string; destination: Destination }[] = [
   { id: "__bb__/extensions", destination: "plugins" },
   { id: "__bb__/skills", destination: "skills" },
@@ -21,6 +21,7 @@ const LINKS: { destination: Destination; label: string; href: string }[] = [
   { destination: "plugins", label: "Plugins", href: "/plugins" },
   { destination: "skills", label: "Skills", href: "/skills" },
   { destination: "automations", label: "Automations", href: "/plugins/automations/automations" },
+  { destination: "settings", label: "Settings", href: "/settings" },
 ];
 const NavigationIcon = experimental_SidebarNavigationIcon;
 
@@ -28,6 +29,7 @@ function destinationForPath(path: string): Destination {
   if (path.startsWith("/plugins/automations/")) return "automations";
   if (path === "/plugins" || path.startsWith("/plugins/")) return "plugins";
   if (path === "/skills" || path.startsWith("/skills/")) return "skills";
+  if (path === "/settings" || path.startsWith("/settings/")) return "settings";
   return "home";
 }
 
@@ -84,6 +86,10 @@ function RailGlyph({ destination }: { destination: Destination }) {
       outline = <svg {...outlineProps}><path d="M4 10a8 8 0 0 1 14-5l2 2m0-4v4h-4M20 14a8 8 0 0 1-14 5l-2-2m0 4v-4h4" /></svg>;
       solid = <svg {...solidProps}><path d="M4 10a8 8 0 0 1 13.7-5.7L20 6.6V3h2v7h-7V8h3.2l-2-2A6 6 0 0 0 6 10H4Zm16 4a8 8 0 0 1-13.7 5.7L4 17.4V21H2v-7h7v2H5.8l2 2A6 6 0 0 0 18 14h2Z" /></svg>;
       break;
+    case "settings":
+      outline = <svg {...outlineProps}><path d="M9.7 3h4.6l.6 2.1a7.5 7.5 0 0 1 1.8 1l2.1-.5 2.3 4-1.5 1.6a7.7 7.7 0 0 1 0 2l1.5 1.6-2.3 4-2.1-.5a7.5 7.5 0 0 1-1.8 1l-.6 2.1H9.7l-.6-2.1a7.5 7.5 0 0 1-1.8-1l-2.1.5-2.3-4 1.5-1.6a7.7 7.7 0 0 1 0-2L2.9 9.6l2.3-4 2.1.5a7.5 7.5 0 0 1 1.8-1L9.7 3Z" /><circle cx="12" cy="12" r="3" /></svg>;
+      solid = <svg {...solidProps}><path d="M9.7 3h4.6l.6 2.1a7.5 7.5 0 0 1 1.8 1l2.1-.5 2.3 4-1.5 1.6a7.7 7.7 0 0 1 0 2l1.5 1.6-2.3 4-2.1-.5a7.5 7.5 0 0 1-1.8 1l-.6 2.1H9.7l-.6-2.1a7.5 7.5 0 0 1-1.8-1l-2.1.5-2.3-4 1.5-1.6a7.7 7.7 0 0 1 0-2L2.9 9.6l2.3-4 2.1.5a7.5 7.5 0 0 1 1.8-1L9.7 3Z" /><circle cx="12" cy="12" r="3" fill="var(--sidebar-accent)" /></svg>;
+      break;
   }
   return <span className="bb-rail-glyph">{outline}{solid}</span>;
 }
@@ -122,6 +128,9 @@ function RailIcons() {
         <RailGlyph destination="home" />
       </button>
       {featured.map(({ item, destination: kind }) => <RailItem key={item.id} item={item} destination={kind} />)}
+      <a className="bb-rail-button" href="/settings" aria-label="Settings" data-bb-rail-destination="settings">
+        <RailGlyph destination="settings" />
+      </a>
       <details className="bb-rail-more" ref={moreRef}>
         <summary className="bb-rail-button" aria-label="More navigation">
           <svg className="bb-rail-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="19" cy="12" r="1.5" /></svg>
@@ -292,7 +301,8 @@ export default definePluginApp((app) => {
           document.dispatchEvent(new Event("bb-rail-route-change"));
         }
         const isExternal = ((path === "/plugins" || path.startsWith("/plugins/"))
-          && !path.startsWith("/plugins/automations/")) || path === "/skills" || path.startsWith("/skills/");
+          && !path.startsWith("/plugins/automations/")) || path === "/skills" || path.startsWith("/skills/")
+          || path === "/settings" || path.startsWith("/settings/");
         const nativeNav = document.querySelector<HTMLElement>('[data-sidebar="sidebar"] > [data-testid="sidebar-navigation-region"] .bb-rail-nav');
         const rect = nativeNav?.getBoundingClientRect();
         const nativeVisible = !!(nativeNav && rect && rect.width >= 40 && rect.height >= 60
@@ -332,7 +342,7 @@ export default definePluginApp((app) => {
             }
             ancestor = ancestor.parentElement;
           }
-          markSubheading(externalSidebar, destination === "plugins" ? "Plugins" : "Skills");
+          markSubheading(externalSidebar, LINKS.find((link) => link.destination === destination)?.label ?? "");
         } else if (destination === "home") {
           const heading = markSubheading(document.querySelector('[data-sidebar="sidebar"]'), "Threads");
           if (heading && !isCollapsed) {
