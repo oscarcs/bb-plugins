@@ -344,7 +344,24 @@ export default definePluginApp((app) => {
           }
           markSubheading(externalSidebar, LINKS.find((link) => link.destination === destination)?.label ?? "");
         } else if (destination === "home") {
-          const heading = markSubheading(document.querySelector('[data-sidebar="sidebar"]'), "Threads");
+          const sidebar = document.querySelector('[data-sidebar="sidebar"]');
+          for (const button of sidebar?.querySelectorAll<HTMLButtonElement>('button[aria-label^="New thread in "]') ?? []) {
+            const section = button.getAttribute("aria-label")?.slice("New thread in ".length);
+            if (!section || section === "Threads") continue;
+            const heading = [...sidebar!.querySelectorAll<HTMLElement>("*")].find((element) =>
+              element.textContent?.trim() === section
+              && ![...element.children].some((child) => child.textContent?.trim() === section),
+            );
+            heading?.classList.add("bb-rail-subheading");
+            let ancestor = button.parentElement;
+            for (let depth = 0; ancestor && depth < 5; depth++, ancestor = ancestor.parentElement) {
+              const style = getComputedStyle(ancestor);
+              if (Number(style.opacity) < 1 || style.visibility === "hidden" || style.pointerEvents === "none") {
+                ancestor.classList.add("bb-rail-project-actions-visible");
+              }
+            }
+          }
+          const heading = markSubheading(sidebar, "Threads");
           if (heading && !isCollapsed) {
             if (!inlineNewThread.isConnected) document.body.appendChild(inlineNewThread);
             const headingRect = heading.getBoundingClientRect();

@@ -156,12 +156,20 @@ html.dark body.bb-app-shell.bb-rail-automations-page.bb-rail-native-visible::aft
 .bb-rail-new-thread { width: 100%; min-height: 31px; padding: 5px 8px; border: 1px solid var(--sidebar-border); border-radius: 7px; background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); font: inherit; font-size: 11px; font-weight: 600; text-align: left; cursor: pointer; }
 .bb-rail-new-thread:hover, .bb-rail-new-thread:focus-visible { filter: brightness(1.08); outline: 1px solid var(--sidebar-ring); }
 .bb-rail-new-thread span { font-size: 14px; vertical-align: -1px; }
-.bb-rail-inline-new-thread { position: fixed; z-index: 45; display: flex; height: 24px; align-items: center; padding: 0 6px; border: 1px solid var(--bb-rail-line); border-radius: 5px; background: var(--bb-rail-surface); color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
-.bb-rail-inline-new-thread:hover, .bb-rail-inline-new-thread:focus-visible { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); outline: none; }
+.bb-rail-inline-new-thread { position: fixed; z-index: 45; }
+.bb-rail-inline-new-thread,
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"]) { display: flex; height: 24px; align-items: center; padding: 0 6px; border: 1px solid var(--bb-rail-line); border-radius: 5px; background: var(--bb-rail-surface); color: var(--muted-foreground); font: inherit; font-size: 12px; font-weight: 600; line-height: 20px; white-space: nowrap; cursor: pointer; }
+.bb-rail-inline-new-thread:hover, .bb-rail-inline-new-thread:focus-visible,
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"]):hover,
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"]):focus-visible { background: var(--sidebar-accent); color: var(--sidebar-accent-foreground); outline: none; }
 body.bb-rail-home [data-sidebar="sidebar"] span:has(button[aria-label="Threads actions"]) { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
-body.bb-rail-home button[aria-label="Threads actions"] { display: flex !important; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0 !important; border: 1px solid var(--bb-rail-line) !important; border-radius: 5px; background: var(--bb-rail-surface) !important; color: var(--muted-foreground) !important; opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
-body.bb-rail-home button[aria-label="Threads actions"]:hover,
-body.bb-rail-home button[aria-label="Threads actions"]:focus-visible { background: var(--sidebar-accent) !important; color: var(--sidebar-accent-foreground) !important; outline: none; }
+body.bb-rail-home [data-sidebar="sidebar"] .bb-rail-project-actions-visible { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"]) { position: static !important; width: auto !important; min-width: 51px; transform: translateX(-6px); opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"]) svg { display: none !important; }
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label^="New thread in "]:not([aria-label="New thread in Threads"])::after { content: "+ New"; }
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label$=" actions"]:not([aria-label="Thread actions"]) { display: flex !important; width: 24px; height: 24px; align-items: center; justify-content: center; padding: 0 !important; border: 1px solid var(--bb-rail-line) !important; border-radius: 5px; background: var(--bb-rail-surface) !important; color: var(--muted-foreground) !important; opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label$=" actions"]:not([aria-label="Thread actions"]):hover,
+body.bb-rail-home [data-sidebar="sidebar"] button[aria-label$=" actions"]:not([aria-label="Thread actions"]):focus-visible { background: var(--sidebar-accent) !important; color: var(--sidebar-accent-foreground) !important; outline: none; }
 body.bb-rail-home button[aria-label="New thread in Threads"] { display: none !important; }
 @media (min-width: 768px) {
   .bb-rail-external-overlay { display: none; position: fixed; z-index: 1000; top: 48px; bottom: 0; left: 0; width: 60px; border-right: 1px solid var(--sidebar-border); background: var(--bb-rail-frame, color-mix(in oklab, var(--sidebar) 80%, black)); }

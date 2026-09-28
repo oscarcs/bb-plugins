@@ -6,7 +6,7 @@ Sidebar Rail gives BB a narrow icon column beside the thread list and a deep vio
 
 - Five destinations: Home, Plugins, Skills, Automations, and Settings. Hover over an icon to see its name. The current destination has a solid white icon and a lighter background.
 - A thread list that you can collapse while keeping the rail visible. Automations hides the thread list while it is open.
-- A compact `+ New` button and Threads menu beside the Threads heading.
+- Matching `+ New` and three-dots buttons beside the Threads and project headings.
 - Codex and Claude usage bars in the sidebar footer. The bars show used percentages and time until reset; hover for more detail. A dash means BB has no reading for that provider.
 - A violet palette across the sidebar, top bar, and main content in dark mode.
 
