@@ -1,19 +1,32 @@
 # Sidebar Rail
 
-A local bb plugin that places an icon rail to the left of the native thread list. Home, Plugins, Skills, Automations, and Settings appear in the rail. Other navigation items remain in More on thread and plugin-panel pages. The existing thread list, footer, and resize handle stay host owned.
+Sidebar Rail gives BB a narrow icon column beside the thread list and a deep violet theme. The same rail stays visible when you open Plugins, Skills, Automations, or Settings.
 
-Home shows `+ New` and the Threads three-dots menu as matching buttons beside the Threads heading, visible even when the heading is not hovered. Automations hides the thread list. On the Plugins, Skills, and Settings pages, an app-wide rail takes the place of bb's Back to app link and shifts each page's navigation beside it. Hover and keyboard-focus labels float above the page content.
+## What you get
 
-Two compact usage bars sit to the right of the footer's bug icon, blue for Codex and orange for Claude. Each row shows the used percentage and a muted countdown to that limit's reset; hover for the provider, window, and full local reset date. They use bb's live provider usage API and show each provider's first reported limit. Readings refresh every two minutes and when the app regains focus; countdowns update every minute. If a provider has no reading, the counter shows a dash.
+- Five destinations: Home, Plugins, Skills, Automations, and Settings. Hover over an icon to see its name. The current destination has a solid white icon and a lighter background.
+- A thread list that you can collapse while keeping the rail visible. Automations hides the thread list while it is open.
+- A compact `+ New` button and Threads menu beside the Threads heading.
+- Codex and Claude usage bars in the sidebar footer. The bars show used percentages and time until reset; hover for more detail. A dash means BB has no reading for that provider.
+- A violet palette across the sidebar, top bar, and main content in dark mode.
 
-The current page's icon is solid white on a lighter background. Other icons are outlines. Selection follows the displayed route, including when navigation moves between the native sidebar and the app-wide rail. There is no separate edge marker.
+## Install
 
-The Threads, Plugins, Skills, Automations, and Settings submenu labels share the same type and colour. The top frame uses one continuous divider across the window, including the empty Home page and the junction with the sidebar. The external-page header seams and the Automations submenu's top fade are covered while their panels are visible.
+Requires BB 0.44 or later. From the repository root:
 
-The native sidebar toggle still controls bb's whole sidebar state. When collapsed, the plugin shows a separate five-icon rail so only the thread-list column disappears visually. The toggle or its keyboard shortcut expands the native sidebar again. A fixed rail remains in front while Home or Automations changes view and while the native menu collapses or expands.
+```sh
+bb plugin install path:. --plugin sidebar-rail --yes
+```
 
-The plugin applies a deep violet-indigo theme in bb's dark mode. The rail, sidebar chrome, and page header share `--bb-rail-frame`, forming one continuous frame across the left and top edges. A thin line separates the frame from the content below it, while the vertical divider begins beneath the top strip. The main canvas, second column, cards, highlights, borders, and text use the palette variables at the top of `rail.css`; edit those hex values to adjust the colours, then run `bb plugin build && bb plugin reload sidebar-rail`.
+The plugin becomes the selected sidebar navigation provider. To return to BB's original navigation, open **Settings → Appearance → Navigation** and choose the bundled **Navigation** provider.
 
-From the repository root, install with `bb plugin install path:. --plugin sidebar-rail --yes`. The plugin selects its navigation provider on install. Disable it or select the bundled Navigation provider in Settings → Appearance to restore the original layout.
+## Change the colours
 
-The plugin uses bb's navigation and app-overlay slots plus a content script that measures and tags the shell. Plugins, Skills, and Settings pages do not expose the native sidebar navigation items, so the overlay uses direct links for its five icons. CSS targets bb 0.44's `[data-sidebar]` and `data-testid` attributes, as well as these pages' Back to app link. These selectors may need updating after bb releases.
+Edit the palette variables at the top of [rail.css](./rail.css), then run this from the plugin directory:
+
+```sh
+bb plugin build
+bb plugin reload sidebar-rail
+```
+
+This plugin adjusts BB's sidebar and page layout through its plugin API and page styles. BB updates may change those page structures, so the layout may occasionally need an update too.
