@@ -1,0 +1,39 @@
+/* Keep the stacked bars alongside the host footer buttons. */
+[data-sidebar="footer"]:has(> .bb-violet-usage) {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+[data-sidebar="footer"]:has(> .bb-violet-usage) > [data-sidebar="menu"] {
+  width: auto;
+  flex: 0 0 auto;
+}
+.bb-violet-usage {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.bb-violet-usage-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px 22px;
+  align-items: center;
+  gap: 4px;
+  height: 14px;
+  color: var(--muted-foreground);
+  font-size: 9px;
+  line-height: 14px;
+}
+.bb-violet-usage-track {
+  display: block;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--border);
+}
+.bb-violet-usage-fill { display: block; height: 100%; border-radius: inherit; }
+.bb-violet-usage-codex .bb-violet-usage-fill { background: #78c9ff; }
+.bb-violet-usage-claude .bb-violet-usage-fill { background: #ef9b5e; }
+.bb-violet-usage-percent { color: var(--foreground); text-align: right; font-variant-numeric: tabular-nums; }
+.bb-violet-usage-reset { color: var(--subtle-foreground); text-align: right; font-variant-numeric: tabular-nums; }

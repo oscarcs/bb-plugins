@@ -1,0 +1,36 @@
+{
+  "name": "bb-plugin-violet-usage",
+  "version": "0.2.0",
+  "type": "module",
+  "engines": {
+    "bb": ">=0.46",
+    "bbPluginSdk": ">=0.6.37"
+  },
+  "bb": {
+    "name": "Violet & Usage",
+    "description": "A deep violet palette and provider usage bars for bb\u2019s navigation rail.",
+    "branding": {
+      "icon": "PanelLeft"
+    },
+    "server": "./server.ts",
+    "app": "./app.tsx",
+    "skills": [],
+    "themes": [
+      {
+        "id": "violet",
+        "name": "Violet",
+        "description": "A deep purple-blue palette with BB’s standard styling.",
+        "css": "./themes/violet.css"
+      }
+    ]
+  },
+  "devDependencies": {
+    "@get-bb/plugin-sdk": "0.6.37",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.3.0",
+    "typescript": "^5.7.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  }
+}

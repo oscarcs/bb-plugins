@@ -1,0 +1,11 @@
+/* Original purple-blue anchors; BB derives its standard surfaces and chrome. */
+:root, .light {}
+.dark {
+  --canvas: #0e0c24;
+  --ink: #ece9ff;
+  --primary: #c5b9ff;
+  --primary-foreground: #15112c;
+  --muted-foreground: #b6add3;
+  --subtle-foreground: #9186b5;
+  --readback-foreground: color-mix(in oklch, var(--ink) 64%, var(--canvas));
+}

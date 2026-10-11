@@ -3,6 +3,6 @@
   "schemaVersion": 1,
   "name": "oscar-bb-plugins",
   "plugins": [
-    { "name": "sidebar-rail", "source": "./bb-plugin-sidebar-rail" }
+    { "name": "violet-usage", "source": "./bb-plugin-violet-usage" }
   ]
 }
