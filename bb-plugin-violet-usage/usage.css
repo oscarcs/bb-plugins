@@ -1,8 +1,14 @@
-/* Keep the stacked bars alongside the host footer buttons. */
+/* Keep the stacked bars alongside the host footer buttons, with disclosures above. */
 [data-sidebar="footer"]:has(> .bb-violet-usage) {
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+[data-sidebar="footer"]:has(> .bb-violet-usage) > [id^="plugin-sidebar-footer-disclosure-"] {
+  order: -1;
+  flex: 0 0 100%;
+  min-width: 0;
 }
 [data-sidebar="footer"]:has(> .bb-violet-usage) > [data-sidebar="menu"] {
   width: auto;
