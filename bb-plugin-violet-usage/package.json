@@ -8,7 +8,7 @@
   },
   "bb": {
     "name": "Violet & Usage",
-    "description": "A deep violet palette and provider usage bars for bb\u2019s navigation rail.",
+    "description": "A deep violet palette and provider usage bars for bb’s navigation rail.",
     "branding": {
       "icon": "PanelLeft"
     },
@@ -25,7 +25,7 @@
     ]
   },
   "devDependencies": {
-    "@get-bb/plugin-sdk": "0.6.37",
+    "@get-bb/plugin-sdk": "0.6.75",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.3.0",
     "typescript": "^5.7.0"

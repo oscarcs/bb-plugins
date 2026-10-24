@@ -24,7 +24,9 @@ function useSidebarFooter(): HTMLElement | null {
   const [footer, setFooter] = useState<HTMLElement | null>(null);
   useEffect(() => {
     const update = () => setFooter(document.querySelector<HTMLElement>(
-      '[data-testid="app-sidebar-body"] [data-sidebar="footer"], '
+      // Rail navigation now places its footer beside the sidebar body.
+      '[data-testid="sidebar-footer-body"] [data-sidebar="footer"], '
+      + '[data-testid="app-sidebar-body"] [data-sidebar="footer"], '
       + '[data-testid="sidebar-footer-row"] [data-sidebar="footer"]',
     ));
     const observer = new MutationObserver(update);
