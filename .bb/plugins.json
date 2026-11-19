@@ -3,6 +3,7 @@
   "schemaVersion": 1,
   "name": "oscar-bb-plugins",
   "plugins": [
-    { "name": "violet-usage", "source": "./bb-plugin-violet-usage" }
+    { "name": "violet-usage", "source": "./bb-plugin-violet-usage" },
+    { "name": "google-antigravity-acp", "source": "./bb-plugin-antigravity-acp" }
   ]
 }
