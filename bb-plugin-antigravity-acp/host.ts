@@ -30,6 +30,7 @@ const CACHE_FILE = path.join(
   "models-cache.json",
 );
 
+const CACHE_VERSION = 2;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — picker never stale, background refresh handles rotation
 
 // Per-provider default configurability
@@ -76,7 +77,7 @@ function loadFromDiskCache(launchEnv?: Record<string, string>): boolean {
   try {
     if (fs.existsSync(CACHE_FILE)) {
       const data = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
-      if (Array.isArray(data.rawModels) && data.rawModels.length > 0) {
+      if (data.cacheVersion === CACHE_VERSION && Array.isArray(data.rawModels) && data.rawModels.length > 0) {
         cacheTimestamp = typeof data.timestamp === "number" ? data.timestamp : 0;
         activeCatalog = parseWithSettings(data.rawModels, launchEnv);
         isInitialized = true;
@@ -94,10 +95,41 @@ function saveToDiskCache(rawModels: RawModel[]) {
   try {
     fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
     cacheTimestamp = Date.now();
-    fs.writeFileSync(CACHE_FILE, JSON.stringify({ rawModels, timestamp: cacheTimestamp }), "utf8");
+    fs.writeFileSync(
+      CACHE_FILE,
+      JSON.stringify({ cacheVersion: CACHE_VERSION, rawModels, timestamp: cacheTimestamp }),
+      "utf8",
+    );
   } catch (err) {
     if (process.env.DEBUG) console.error("[acp-antigravity] Failed saving disk cache:", err);
   }
+}
+
+function findModelConfigOption(configOptions: any[] | undefined) {
+  const list = Array.isArray(configOptions) ? configOptions : [];
+  return list.find((c: any) => c?.category === "model") ?? list.find((c: any) => c?.id === "model");
+}
+
+function findThoughtLevelConfigOption(configOptions: any[] | undefined) {
+  const list = Array.isArray(configOptions) ? configOptions : [];
+  return list.find((c: any) => c?.category === "thought_level") ?? list.find((c: any) => c?.id === "thinking_level");
+}
+
+function extractThoughtLevelFields(thoughtOption: any): Pick<RawModel, "reasoningEfforts" | "defaultReasoningEffort"> {
+  const reasoningEfforts = (thoughtOption?.options ?? [])
+    .filter((o: any) => o && typeof o.value === "string" && o.value.trim())
+    .map((o: any) => ({
+      value: o.value,
+      ...(typeof o.name === "string" && o.name.trim() ? { name: o.name.trim() } : {}),
+    }));
+  const defaultReasoningEffort =
+    typeof thoughtOption?.currentValue === "string" && thoughtOption.currentValue.trim()
+      ? thoughtOption.currentValue.trim()
+      : undefined;
+  return {
+    reasoningEfforts,
+    ...(defaultReasoningEffort ? { defaultReasoningEffort } : {}),
+  };
 }
 
 async function queryAcpServer(
@@ -118,7 +150,7 @@ async function queryAcpServer(
     const timeout = setTimeout(() => {
       proc.kill();
       reject(new Error("ACP server query timed out"));
-    }, 15000);
+    }, 20000);
 
     rl.on("line", (line) => {
       try {
@@ -148,11 +180,54 @@ async function queryAcpServer(
           clientCapabilities: {},
         });
         const session: any = await send("session/new", { cwd: process.cwd(), mcpServers: [] });
-        const modelOption = session?.configOptions?.find((c: any) => c.id === "model");
-        const rawList = (modelOption?.options ?? []).map((o: any) => ({
-          id: o.value,
-          name: o.name ?? o.value,
-        }));
+        const modelOption = findModelConfigOption(session?.configOptions);
+        const initialThoughtOption = findThoughtLevelConfigOption(session?.configOptions);
+        const options = Array.isArray(modelOption?.options) ? modelOption.options : [];
+        let rawList: RawModel[];
+
+        if (initialThoughtOption && session?.sessionId && modelOption?.id) {
+          // Modern ACP 1.5.0+: probe each model's available thinking_level options.
+          const initialModelValue = modelOption.currentValue;
+          let switched = false;
+          rawList = [];
+          for (const o of options) {
+            let thoughtOption = initialThoughtOption;
+            if (o.value !== initialModelValue) {
+              try {
+                const updated: any = await send("session/set_config_option", {
+                  sessionId: session.sessionId,
+                  configId: modelOption.id,
+                  value: o.value,
+                });
+                switched = true;
+                const probedThought = findThoughtLevelConfigOption(updated?.configOptions);
+                if (probedThought) thoughtOption = probedThought;
+              } catch {
+                // Fall back to initial thought_level options if switching a model fails.
+              }
+            }
+            rawList.push({
+              id: o.value,
+              name: o.name ?? o.value,
+              ...extractThoughtLevelFields(thoughtOption),
+            });
+          }
+          if (switched && initialModelValue) {
+            try {
+              await send("session/set_config_option", {
+                sessionId: session.sessionId,
+                configId: modelOption.id,
+                value: initialModelValue,
+              });
+            } catch {}
+          }
+        } else {
+          rawList = options.map((o: any) => ({
+            id: o.value,
+            name: o.name ?? o.value,
+          }));
+        }
+
         clearTimeout(timeout);
         proc.kill();
         resolve(rawList);
@@ -184,6 +259,7 @@ async function refreshModels(launchSpec?: { command: string; args: string[]; env
           cacheTimestamp = Date.now();
           try {
             const data = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
+            data.cacheVersion = CACHE_VERSION;
             data.timestamp = cacheTimestamp;
             fs.writeFileSync(CACHE_FILE, JSON.stringify(data), "utf8");
           } catch {}

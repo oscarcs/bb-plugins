@@ -33,7 +33,7 @@ export default async function plugin(bb: BbPluginApi) {
       type: "string",
       label: "Default reasoning effort",
       description:
-        "Preferred reasoning effort for the default model (e.g. low, medium, high). Leave empty to use the model's own default.",
+        "Preferred reasoning effort for the default model (e.g. low, medium, high, xhigh). Leave empty to use the model's own default.",
       default: "",
     },
   });
@@ -80,8 +80,14 @@ export default async function plugin(bb: BbPluginApi) {
         installUrl: "https://antigravity.google/docs/ide/extensions/zed",
         iconTint: { light: "#4285F4", dark: "#8AB4F8" },
       },
-      // Effort variants are separate ACP model ids; no separate service tier control.
-      reasoningLevels: [{ id: "medium", label: "Medium" }],
+      reasoningLevels: [
+        { id: "none", label: "None" },
+        { id: "low", label: "Low" },
+        { id: "medium", label: "Medium" },
+        { id: "high", label: "High" },
+        { id: "xhigh", label: "Extra High" },
+        { id: "max", label: "Max" },
+      ],
       // Only listed on hosts where the binary is installed and the probe passes.
       experimental_visibility: "installed",
       // One probe per machine serves every workspace on it.
@@ -96,7 +102,7 @@ export default async function plugin(bb: BbPluginApi) {
         // The server advertises session list and resume but no fork.
         fork: "none",
         permissionModes: ["accept-edits", "full"],
-        reasoningLevels: ["low", "medium", "high"],
+        reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
       },
       composerActions: [],
       experimental_nativeSkillRoots: {

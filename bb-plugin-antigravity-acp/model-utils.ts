@@ -1,8 +1,15 @@
 // Pure model parsing and resolution. No bb dependencies, so tests import it directly.
 
+export interface RawReasoningOption {
+  value: string;
+  name?: string;
+}
+
 export interface RawModel {
   id: string;
   name: string;
+  reasoningEfforts?: RawReasoningOption[];
+  defaultReasoningEffort?: string;
 }
 
 export interface ModelFamily {
@@ -10,6 +17,8 @@ export interface ModelFamily {
   displayName: string;
   variants: Map<string, string>;
   defaultEffort: string;
+  effortNames?: Map<string, string>;
+  nativeThoughtLevel?: boolean;
 }
 
 export interface AvailableModelReasoningEffort {
@@ -37,6 +46,19 @@ export interface ModelCatalog {
 export const FALLBACK_DEFAULT_MODEL_ID = "gemini-3.8-flash";
 export const FALLBACK_DEFAULT_VARIANT_ID = "gemini-3.8-flash-medium";
 
+const STANDARD_EFFORT_LADDER = [
+  "none",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "ultracode",
+  "max",
+  "ultra",
+] as const;
+
+const LEGACY_EFFORT_SUFFIX_RE = /-(none|minimal|low|medium|high|xhigh|ultracode|max|ultra)$/;
+
 export function normalizeModelId(id: string): string {
   return id
     .trim()
@@ -55,7 +77,13 @@ export function normalizeEffort(raw: string): string {
     .replace(/-+/g, "-") || "medium";
 }
 
+function normalizeNativeThoughtLevel(raw: string): string {
+  const normalized = normalizeEffort(raw);
+  return normalized === "minimal" ? "low" : normalized;
+}
+
 export function prettyEffort(effort: string): string {
+  if (effort === "xhigh") return "Extra High";
   return effort
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -89,6 +117,41 @@ export function parseRawModels(
     const rawId = raw.id;
     const rawName = (raw.name || rawId).trim();
 
+    if (Array.isArray(raw.reasoningEfforts)) {
+      // Modern ACP 1.5.0+: each model has a dedicated thought_level configOption.
+      const familyId = normalizeModelId(rawId);
+      const variants = new Map<string, string>();
+      const effortNames = new Map<string, string>();
+      for (const opt of raw.reasoningEfforts) {
+        const eff = normalizeNativeThoughtLevel(opt.value);
+        if (!variants.has(eff)) {
+          variants.set(eff, rawId);
+          if (opt.name?.trim()) effortNames.set(eff, opt.name.trim());
+        }
+      }
+      const reportedDefault = raw.defaultReasoningEffort
+        ? normalizeNativeThoughtLevel(raw.defaultReasoningEffort)
+        : "";
+      let defaultEffort = "medium";
+      if (reportedDefault && variants.has(reportedDefault)) {
+        defaultEffort = reportedDefault;
+      } else if (variants.has("medium")) {
+        defaultEffort = "medium";
+      } else if (variants.size > 0) {
+        defaultEffort = variants.keys().next().value! as string;
+      }
+      families.set(familyId, {
+        id: familyId,
+        displayName: rawName,
+        variants,
+        defaultEffort,
+        effortNames,
+        nativeThoughtLevel: true,
+      });
+      continue;
+    }
+
+    // Legacy ACP (<1.5.0): effort is encoded in the display name "(High)" or model id suffix.
     const parenMatch = rawName.match(/^(.*)\s*\(([^)]+)\)\s*$/);
     let displayName: string;
     let effort: string;
@@ -127,12 +190,14 @@ export function parseRawModels(
     if (fam.variants.size === 1) fam.defaultEffort = effort;
   }
 
-  // Ensure default effort is medium if available, or first available variant
+  // Legacy families default to medium when available; native thought_level families keep the server default.
   for (const fam of families.values()) {
-    if (fam.variants.has("medium")) {
-      fam.defaultEffort = "medium";
-    } else if (!fam.variants.has(fam.defaultEffort)) {
-      fam.defaultEffort = fam.variants.keys().next().value! as string;
+    if (!fam.nativeThoughtLevel) {
+      if (fam.variants.has("medium")) {
+        fam.defaultEffort = "medium";
+      } else if (!fam.variants.has(fam.defaultEffort) && fam.variants.size > 0) {
+        fam.defaultEffort = fam.variants.keys().next().value! as string;
+      }
     }
   }
 
@@ -166,18 +231,21 @@ export function parseRawModels(
     defaultFamilyId = families.keys().next().value! as string;
   }
 
-  const standardLadder = ["low", "medium", "high"];
   const models: AvailableModel[] = [];
 
   for (const fam of families.values()) {
     const efforts: string[] = [];
-    for (const eff of standardLadder) if (fam.variants.has(eff)) efforts.push(eff);
+    for (const eff of STANDARD_EFFORT_LADDER) if (fam.variants.has(eff)) efforts.push(eff);
     for (const eff of fam.variants.keys()) if (!efforts.includes(eff)) efforts.push(eff);
 
-    const supportedReasoningEfforts: AvailableModelReasoningEffort[] = efforts.map((eff) => ({
-      reasoningEffort: eff,
-      description: `${prettyEffort(eff)} reasoning effort`,
-    }));
+    const supportedReasoningEfforts: AvailableModelReasoningEffort[] = efforts.map((eff) => {
+      const customName = fam.effortNames?.get(eff);
+      const label = customName || prettyEffort(eff);
+      return {
+        reasoningEffort: eff,
+        description: `${label} reasoning effort`,
+      };
+    });
 
     let defaultReasoningEffort = fam.defaultEffort;
     if (preferredFromSettings && fam.id === preferredFromSettings.model && fam.variants.has(preferredFromSettings.effort)) {
@@ -221,6 +289,19 @@ export function resolveRawModelId(
     }
   }
 
+  // Migrate legacy "<family>-<effort>" ids (e.g. from pre-1.5.0 threads) onto native thought_level families.
+  if (!fam) {
+    const stripped = targetModel.replace(LEGACY_EFFORT_SUFFIX_RE, "");
+    if (stripped !== targetModel) {
+      for (const [k, v] of families.entries()) {
+        if (k.toLowerCase() === stripped.toLowerCase() && v.nativeThoughtLevel) {
+          fam = v;
+          break;
+        }
+      }
+    }
+  }
+
   if (fam) {
     const effort = normalizeEffort(reasoningLevel ?? fam.defaultEffort ?? "medium");
     const variant = fam.variants.get(effort);
@@ -245,10 +326,24 @@ export function resolveRawModelId(
   return targetModel;
 }
 
+function serializeReasoningEfforts(efforts?: RawReasoningOption[]): string {
+  if (!efforts) return "";
+  return efforts.map((e) => `${e.value}:${e.name ?? ""}`).join(",");
+}
+
 export function rawListsEqual(a: RawModel[], b: RawModel[]): boolean {
   if (a.length !== b.length) return false;
   const sa = [...a].sort((x, y) => x.id.localeCompare(y.id));
   const sb = [...b].sort((x, y) => x.id.localeCompare(y.id));
-  for (let i = 0; i < sa.length; i++) if (sa[i].id !== sb[i].id || sa[i].name !== sb[i].name) return false;
+  for (let i = 0; i < sa.length; i++) {
+    if (
+      sa[i].id !== sb[i].id ||
+      sa[i].name !== sb[i].name ||
+      (sa[i].defaultReasoningEffort ?? "") !== (sb[i].defaultReasoningEffort ?? "") ||
+      serializeReasoningEfforts(sa[i].reasoningEfforts) !== serializeReasoningEfforts(sb[i].reasoningEfforts)
+    ) {
+      return false;
+    }
+  }
   return true;
 }

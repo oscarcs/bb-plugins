@@ -228,3 +228,87 @@ describe("cache staleness — TTL behavior", () => {
     assert.ok(Array.isArray(mockCache.rawModels));
   });
 });
+
+describe("ACP 1.5.0 native thought_level models", () => {
+  const NATIVE_1_5_RAW: RawModel[] = [
+    {
+      id: "gemini-4-neon",
+      name: "Gemini 4 Neon",
+      defaultReasoningEffort: "high",
+      reasoningEfforts: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+        { value: "xhigh", name: "Extra" },
+      ],
+    },
+    {
+      id: "gemini-4-argon",
+      name: "Gemini 4 Argon",
+      defaultReasoningEffort: "high",
+      reasoningEfforts: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    },
+    {
+      id: "gemini-4-hydrogen",
+      name: "Gemini 4 Hydrogen",
+      defaultReasoningEffort: "high",
+      reasoningEfforts: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+        { value: "xhigh", name: "Extra" },
+      ],
+    },
+    {
+      id: "gemini-3.8-flash",
+      name: "Gemini 3.8 Flash",
+      defaultReasoningEffort: "high",
+      reasoningEfforts: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    },
+  ];
+
+  it("exposes per-model thought_level efforts instead of slicing the last hyphen of model id", () => {
+    const { models, defaultFamilyId } = parseRawModels(NATIVE_1_5_RAW);
+    assert.equal(defaultFamilyId, "gemini-3.8-flash");
+    const neon = models.find((m) => m.id === "gemini-4-neon")!;
+    assert.deepEqual(
+      neon.supportedReasoningEfforts.map((e) => e.reasoningEffort),
+      ["low", "medium", "high", "xhigh"],
+    );
+    assert.equal(neon.defaultReasoningEffort, "high");
+
+    const flash = models.find((m) => m.id === "gemini-3.8-flash")!;
+    assert.deepEqual(
+      flash.supportedReasoningEfforts.map((e) => e.reasoningEffort),
+      ["low", "medium", "high"],
+    );
+    assert.equal(flash.defaultReasoningEffort, "high");
+    assert.equal(flash.isDefault, true);
+  });
+
+  it("keeps bare model ids on resolveRawModelId and migrates legacy -effort ids", () => {
+    const catalog = parseRawModels(NATIVE_1_5_RAW);
+    assert.equal(resolveRawModelId("gemini-4-neon", "xhigh", catalog), "gemini-4-neon");
+    assert.equal(resolveRawModelId("gemini-3.8-flash", "low", catalog), "gemini-3.8-flash");
+    assert.equal(resolveRawModelId("gemini-3.8-flash-medium", "medium", catalog), "gemini-3.8-flash");
+    assert.equal(resolveRawModelId("gemini-4-neon-high", undefined, catalog), "gemini-4-neon");
+  });
+
+  it("detects reasoning effort changes in rawListsEqual", () => {
+    const updated = NATIVE_1_5_RAW.map((m) =>
+      m.id === "gemini-4-argon"
+        ? { ...m, reasoningEfforts: [...m.reasoningEfforts!, { value: "xhigh", name: "Extra" }] }
+        : m,
+    );
+    assert.equal(rawListsEqual(NATIVE_1_5_RAW, NATIVE_1_5_RAW), true);
+    assert.equal(rawListsEqual(NATIVE_1_5_RAW, updated), false);
+  });
+});
