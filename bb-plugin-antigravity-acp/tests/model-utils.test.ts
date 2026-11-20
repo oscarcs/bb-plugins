@@ -311,4 +311,24 @@ describe("ACP 1.5.0 native thought_level models", () => {
     assert.equal(rawListsEqual(NATIVE_1_5_RAW, NATIVE_1_5_RAW), true);
     assert.equal(rawListsEqual(NATIVE_1_5_RAW, updated), false);
   });
+
+  it("handles agy acp models without thought_level options (e.g. Orchestrator, GPT-OSS)", () => {
+    const withNoEffortModels: RawModel[] = [
+      ...NATIVE_1_5_RAW,
+      { id: "gemini-pro-orchestrator-neon", name: "Orchestrator (Neon)", reasoningEfforts: [] },
+      { id: "gpt-oss-120b-medium", name: "GPT-OSS 120B (Medium)", reasoningEfforts: [] },
+    ];
+    const catalog = parseRawModels(withNoEffortModels);
+    const orch = catalog.models.find((m) => m.id === "gemini-pro-orchestrator-neon")!;
+    assert.ok(orch);
+    assert.equal(orch.displayName, "Orchestrator (Neon)");
+    assert.deepEqual(orch.supportedReasoningEfforts, []);
+    assert.equal(orch.defaultReasoningEffort, "medium");
+    assert.equal(resolveRawModelId("gemini-pro-orchestrator-neon", undefined, catalog), "gemini-pro-orchestrator-neon");
+
+    const gpt = catalog.models.find((m) => m.id === "gpt-oss-120b-medium")!;
+    assert.ok(gpt);
+    assert.deepEqual(gpt.supportedReasoningEfforts, []);
+    assert.equal(resolveRawModelId("gpt-oss-120b-medium", undefined, catalog), "gpt-oss-120b-medium");
+  });
 });

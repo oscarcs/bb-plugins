@@ -6,4 +6,4 @@ Personal plugins for BB.
 
 - [Agy Usage](./bb-plugin-agy-usage/README.md) — Antigravity quotas from the official CLI usage screen.
 
-- [Google Antigravity (ACP)](./bb-plugin-antigravity-acp/README.md) — Google Antigravity ACP provider (`agy_acp_server.par` v1.5.0) with native multimodal viewing, BB runtime directory access, and tool-lifecycle fixes.
+- [Google Antigravity (ACP)](./bb-plugin-antigravity-acp/README.md) — Google Antigravity ACP provider backed by the official Antigravity CLI (`agy acp --stdio`) with per-model reasoning levels, Auto mode OS sandboxing, unsandboxed Full access mode, and BB runtime directory access.

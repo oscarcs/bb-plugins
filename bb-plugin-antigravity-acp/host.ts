@@ -1,4 +1,5 @@
-// Host entry: wraps the shared ACP provider bridge, discovers models from the running Antigravity server, and serves the install/status host RPC.
+// Host entry: wraps the shared ACP provider bridge for `agy acp --stdio`,
+// discovers models & per-model thinking levels, and serves the host probe RPC.
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
@@ -9,8 +10,8 @@ import {
 } from "@get-bb/plugin-sdk/provider-bridge/acp";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
 import { agyHostContract } from "./contract.js";
-import { probeLocal, runInstall } from "./install.js";
-
+import { probeLocal, resolveAgyBinary } from "./probe.js";
+import { renderAgyAcpProxyScript } from "./proxy-script.js";
 import {
   normalizeModelId,
   normalizeEffort,
@@ -21,22 +22,39 @@ import {
   type ModelCatalog,
 } from "./model-utils.js";
 
+const PLUGIN_DATA_DIR = path.join(os.homedir(), ".bb", "plugins", "google-antigravity-acp");
+const CACHE_FILE = path.join(PLUGIN_DATA_DIR, "models-cache.json");
+const PROXY_FILE = path.join(PLUGIN_DATA_DIR, "acp-proxy.mjs");
 
-const CACHE_FILE = path.join(
-  os.homedir(),
-  ".bb",
-  "plugins",
-  "google-antigravity-acp",
-  "models-cache.json",
-);
-
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6h — picker never stale, background refresh handles rotation
 
-// Per-provider default configurability
+// ---- Proxy materialization ------------------------------------------------
+
+let lastWrittenProxySource: string | null = null;
+
+function ensureProxyScript(): string {
+  const source = renderAgyAcpProxyScript();
+  if (lastWrittenProxySource === source && fs.existsSync(PROXY_FILE)) {
+    return PROXY_FILE;
+  }
+  fs.mkdirSync(PLUGIN_DATA_DIR, { recursive: true });
+  let existing = "";
+  try {
+    existing = fs.readFileSync(PROXY_FILE, "utf8");
+  } catch {}
+  if (existing !== source) {
+    const tmp = `${PROXY_FILE}.tmp-${process.pid}-${Date.now()}`;
+    fs.writeFileSync(tmp, source, { encoding: "utf8", mode: 0o755 });
+    fs.renameSync(tmp, PROXY_FILE);
+  }
+  lastWrittenProxySource = source;
+  return PROXY_FILE;
+}
+
+// ---- Per-provider default configurability ---------------------------------
 
 function getPreferredDefault(launchEnv?: Record<string, string>): { model: string; effort: string } | null {
-  // 1. In-band RPC launchSpec env (works across distributed / remote hosts)
   const envModel = launchEnv?.BB_ANTIGRAVITY_DEFAULT_MODEL || process.env.BB_ANTIGRAVITY_DEFAULT_MODEL;
   const envEffort = launchEnv?.BB_ANTIGRAVITY_DEFAULT_REASONING || process.env.BB_ANTIGRAVITY_DEFAULT_REASONING;
   if (envModel && envModel.trim()) {
@@ -45,11 +63,22 @@ function getPreferredDefault(launchEnv?: Record<string, string>): { model: strin
       effort: normalizeEffort(envEffort || "medium"),
     };
   }
-
   return null;
 }
 
-// Wrap parse to inject settings
+function getAcceptEditsMode(launchEnv?: Record<string, string>): string {
+  const raw = (
+    launchEnv?.BB_ANTIGRAVITY_ACCEPT_EDITS_MODE ??
+    process.env.BB_ANTIGRAVITY_ACCEPT_EDITS_MODE ??
+    "auto"
+  )
+    .trim()
+    .toLowerCase();
+  if (raw === "default" || raw === "none" || raw === "off") return "";
+  if (raw === "accept-edits" || raw === "auto") return raw;
+  return "auto";
+}
+
 function parseWithSettings(rawList: RawModel[], launchEnv?: Record<string, string>): ModelCatalog {
   const pref = getPreferredDefault(launchEnv);
   return parseRawModels(rawList, undefined, pref);
@@ -137,8 +166,9 @@ async function queryAcpServer(
   args: string[],
   env: Record<string, string>,
 ): Promise<RawModel[]> {
+  const resolvedCommand = resolveAgyBinary(command) ?? command;
   return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
+    const proc = spawn(resolvedCommand, args, {
       env: { ...process.env, ...env },
       stdio: ["pipe", "pipe", "ignore"],
     });
@@ -151,6 +181,11 @@ async function queryAcpServer(
       proc.kill();
       reject(new Error("ACP server query timed out"));
     }, 20000);
+
+    proc.once("error", (err) => {
+      clearTimeout(timeout);
+      reject(err);
+    });
 
     rl.on("line", (line) => {
       try {
@@ -185,8 +220,9 @@ async function queryAcpServer(
         const options = Array.isArray(modelOption?.options) ? modelOption.options : [];
         let rawList: RawModel[];
 
-        if (initialThoughtOption && session?.sessionId && modelOption?.id) {
-          // Modern ACP 1.5.0+: probe each model's available thinking_level options.
+        if (session?.sessionId && modelOption?.id) {
+          // Probe each model's available thought_level options (some models like Orchestrator
+          // and GPT-OSS intentionally omit thought_level).
           const initialModelValue = modelOption.currentValue;
           let switched = false;
           rawList = [];
@@ -200,10 +236,11 @@ async function queryAcpServer(
                   value: o.value,
                 });
                 switched = true;
-                const probedThought = findThoughtLevelConfigOption(updated?.configOptions);
-                if (probedThought) thoughtOption = probedThought;
+                if (Array.isArray(updated?.configOptions)) {
+                  thoughtOption = findThoughtLevelConfigOption(updated.configOptions);
+                }
               } catch {
-                // Fall back to initial thought_level options if switching a model fails.
+                // Keep initialThoughtOption if switching a model fails.
               }
             }
             rawList.push({
@@ -242,20 +279,18 @@ async function queryAcpServer(
 
 async function refreshModels(launchSpec?: { command: string; args: string[]; env: Record<string, string> }) {
   if (discoveryPromise) return discoveryPromise;
-  const cmd = launchSpec?.command || "agy_acp_server.par";
-  const args = launchSpec?.args || [];
+  const cmd = launchSpec?.command || "agy";
+  const args = launchSpec?.args?.length ? launchSpec.args : ["acp", "--stdio"];
   const env = launchSpec?.env || {};
 
   discoveryPromise = queryAcpServer(cmd, args, env)
     .then((rawList) => {
       if (rawList && rawList.length > 0) {
-        // Stale check: diff against current cache — handles added/deprecated models so picker never stale
         if (!isInitialized || !rawListsEqual(rawList, activeCatalog.rawModels)) {
           activeCatalog = parseWithSettings(rawList, env);
           isInitialized = true;
           saveToDiskCache(rawList);
         } else {
-          // No change — just bump timestamp to avoid re-querying
           cacheTimestamp = Date.now();
           try {
             const data = JSON.parse(fs.readFileSync(CACHE_FILE, "utf8"));
@@ -277,7 +312,7 @@ async function refreshModels(launchSpec?: { command: string; args: string[]; env
   return discoveryPromise;
 }
 
-// Attempt initial load from disk cache
+// Attempt initial load from disk cache.
 loadFromDiskCache();
 
 export const experimental_providerBridge = {
@@ -286,16 +321,24 @@ export const experimental_providerBridge = {
     try {
       const parsed = JSON.parse(line);
       if (parsed && typeof parsed === "object") {
+        if (parsed.method === "provider/health" || parsed.method === "provider/installation/status") {
+          const launchSpec = parsed.params?.providerOptions?.acpLaunchSpec;
+          if (launchSpec && typeof launchSpec.command === "string") {
+            const resolved = resolveAgyBinary(launchSpec.command);
+            if (resolved) {
+              launchSpec.command = resolved;
+              line = JSON.stringify(parsed);
+            }
+          }
+        }
+
         if (parsed.method === "model/list") {
           const launchSpec = parsed.params?.providerOptions?.acpLaunchSpec;
           if (!isInitialized || isCacheStale()) {
-            // Stale or cold — await discovery so first picker is fresh
             await refreshModels(launchSpec);
           } else {
-            // Re-derive from cache to honor current defaultModel setting
             activeCatalog = parseWithSettings(activeCatalog.rawModels, launchSpec?.env);
             if (Date.now() - lastRefreshAt > 60_000) {
-              // Background refresh (debounced 60s) to pick up added/deprecated models without blocking
               refreshModels(launchSpec);
             }
           }
@@ -328,12 +371,45 @@ export const experimental_providerBridge = {
               await refreshModels(launchSpec);
             }
           }
-          const resolved = resolveRawModelId(
+
+          const resolvedModel = resolveRawModelId(
             parsed.params.options.model,
             parsed.params.options.reasoningLevel,
             activeCatalog,
           );
-          parsed.params.options.model = resolved;
+          parsed.params.options.model = resolvedModel;
+
+          if (launchSpec && typeof launchSpec === "object") {
+            const cliCommand =
+              resolveAgyBinary(typeof launchSpec.command === "string" ? launchSpec.command : "agy") ??
+              (typeof launchSpec.command === "string" ? launchSpec.command : "agy");
+            const proxyPath = ensureProxyScript();
+            const permissionMode = parsed.params.options.permissionMode;
+            const proxyArgs: string[] = [proxyPath];
+            const nextEnv: Record<string, string> = {
+              ...(launchSpec.env ?? {}),
+              AGY_CLI_COMMAND: cliCommand,
+            };
+
+            if (permissionMode === "full") {
+              // Full access: run completely unsandboxed and auto-approve all tool requests.
+              proxyArgs.push("--dangerously-skip-permissions");
+              delete nextEnv.AGY_ACP_SESSION_MODE;
+            } else {
+              // Accept edits: apply configured agy session mode (default: "auto", with Seatbelt sandbox).
+              const sessionMode = getAcceptEditsMode(launchSpec.env);
+              if (sessionMode) {
+                nextEnv.AGY_ACP_SESSION_MODE = sessionMode;
+              } else {
+                delete nextEnv.AGY_ACP_SESSION_MODE;
+              }
+            }
+
+            launchSpec.command = process.execPath;
+            launchSpec.args = proxyArgs;
+            launchSpec.env = nextEnv;
+          }
+
           line = JSON.stringify(parsed);
         }
       }
@@ -350,17 +426,8 @@ export const experimental_providerBridge = {
 export default experimental_defineHostEntry({
   contract: agyHostContract,
   handlers: {
-    probe: async () => {
-      return probeLocal();
-    },
-    install: async (params) => {
-      return runInstall({
-        installDir: params.installDir,
-        binDir: params.binDir,
-        force: params.force,
-        updatePath: params.updatePath,
-        source: params.source,
-      });
+    probe: async (params) => {
+      return probeLocal(params.cliCommand ?? "agy");
     },
   },
 });

@@ -1,25 +1,14 @@
-# Google Antigravity (ACP) for bb
+# Google Antigravity (ACP) Plugin Overview
 
-Run bb threads on Google Antigravity through its official ACP server
-(agy_acp_server.par).
+This plugin registers the `acp-antigravity` provider in BB backed by the official Antigravity CLI's native ACP server (`agy acp --stdio`).
 
-## What it does
+## Architecture
 
-Registers the provider `acp-antigravity` in bb with full ACP support: dynamic
-model catalog, reasoning levels, default/fast service tiers, in-band Google
-authentication (account, Gemini API key, or Agent Platform), and health-gated
-visibility — the provider only appears on machines where the server binary is
-installed and the probe passes.
-
-## Machine install
-
-`bb google-antigravity-acp install` downloads the official zip, extracts it
-without unzip/bsdtar dependencies, links the server binary and sandbox helper
-onto PATH per machine, and can update PATH on Windows with `--update-path`.
-`bb google-antigravity-acp status` shows the resolved binary and provider
-state. Installs run via host RPC on the machine where the daemon executes.
-
-## Links
-
-- Repository: https://github.com/rawizhere/bb-plugin-antigravity-acp
-- bb: https://github.com/get-bb/bb
+- **`server.ts`**: Registers the `acp-antigravity` provider, plugin settings (`cliCommand`, `acceptEditsMode`, `defaultModel`, `defaultReasoningEffort`), and the `bb google-antigravity-acp status` CLI command.
+- **`host.ts`**: Wraps `@get-bb/plugin-sdk/provider-bridge/acp`:
+  - Resolves `agy` (including `~/.local/bin`) for `provider/health`.
+  - Queries `agy acp --stdio` on `model/list` to discover available models and per-model `thought_level` options, caching results in `~/.bb/plugins/google-antigravity-acp/models-cache.json`.
+  - Materializes `~/.bb/plugins/google-antigravity-acp/acp-proxy.mjs` on `thread/start`, `thread/resume`, and `thread/fork`, passing `--dangerously-skip-permissions` in BB `full` mode or `AGY_ACP_SESSION_MODE` (default `auto`) in BB `accept-edits` mode.
+- **`proxy-script.ts`**: Generates the lightweight stdio proxy that merges BB runtime directories into `additionalDirectories` and switches `agy acp`'s session `mode` after `session/new`, `session/load`, or `session/resume` when `AGY_ACP_SESSION_MODE` is set.
+- **`model-utils.ts`**: Pure model catalog parsing, reasoning effort ordering, and legacy model ID migration.
+- **`probe.ts`**: Resolves `agy`, reads `agy --version`, and verifies a live `agy acp --stdio` `initialize` handshake.

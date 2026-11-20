@@ -3,30 +3,31 @@ import type {
   PluginCliContext,
 } from "@get-bb/plugin-sdk";
 import { agyHostContract } from "./contract.js";
-import { FALLBACK_DIST, detectTarget, probeLocal, runInstall, type InstallResult } from "./install.js";
+import { probeLocal } from "./probe.js";
 
 const PROVIDER_ID = "acp-antigravity";
 
 export default async function plugin(bb: BbPluginApi) {
-  // Installs run on each host, so ~ expands per host and binaries are found via PATH.
   const settings = bb.settings.define({
-    installDir: {
+    cliCommand: {
       type: "string",
-      label: "Install directory for the ACP server",
-      description: "Extracted binaries go here. `~` expands on the target machine.",
-      default: "~/.local/opt/agy-acp-server",
+      label: "Antigravity CLI command",
+      description:
+        "Executable name or path for the official Antigravity CLI (`agy`). Defaults to `agy` on PATH or `~/.local/bin/agy`.",
+      default: "agy",
     },
-    binDir: {
+    acceptEditsMode: {
       type: "string",
-      label: "Bin directory on PATH",
-      description: "Symlinks to the server binary and its sandbox helper go here.",
-      default: "~/.local/bin",
+      label: "Accept-edits session mode",
+      description:
+        "Session mode applied to `agy acp` when a BB thread runs in Accept edits mode: `auto` (workspace edits + OS terminal sandbox), `accept-edits` (workspace edits only, no sandbox), or `default` (prompt per agy settings). Full access mode always runs unsandboxed with `--dangerously-skip-permissions`.",
+      default: "auto",
     },
     defaultModel: {
       type: "string",
       label: "Default model",
       description:
-        "Default model family for Google Antigravity threads (e.g. gemini-3.8-flash, gemini-3.7-flash, gemini-3.1-pro). Leave empty to use the latest Flash model.",
+        "Default model ID for Google Antigravity threads (e.g. gemini-4-neon, gemini-4-argon, gemini-3.8-flash). Leave empty to use the latest Flash model.",
       default: "",
     },
     defaultReasoningEffort: {
@@ -39,9 +40,6 @@ export default async function plugin(bb: BbPluginApi) {
   });
   let saved = await settings.get();
 
-  // Launch args come from the ACP registry, mirrored in FALLBACK_DIST; platform resolution uses the server's own platform.
-  const launchArgs = FALLBACK_DIST[detectTarget().distKey]?.args ?? [];
-
   function buildLaunchSpec(currentSettings: typeof saved) {
     const env: Record<string, string> = {};
     if (currentSettings.defaultModel?.trim()) {
@@ -50,11 +48,13 @@ export default async function plugin(bb: BbPluginApi) {
     if (currentSettings.defaultReasoningEffort?.trim()) {
       env.BB_ANTIGRAVITY_DEFAULT_REASONING = currentSettings.defaultReasoningEffort.trim();
     }
+    if (currentSettings.acceptEditsMode?.trim()) {
+      env.BB_ANTIGRAVITY_ACCEPT_EDITS_MODE = currentSettings.acceptEditsMode.trim();
+    }
     return {
       displayName: "Google Antigravity",
-      // Windows installs the .exe, POSIX the .par. Both resolve on the server's platform.
-      command: detectTarget().binaryName,
-      args: launchArgs,
+      command: currentSettings.cliCommand?.trim() || "agy",
+      args: ["acp", "--stdio"],
       env,
     };
   }
@@ -72,12 +72,11 @@ export default async function plugin(bb: BbPluginApi) {
       family: "acp",
       icon: "./icons/google-antigravity.svg",
       strings: {
-        // The server authenticates in-band via Google account, Gemini Enterprise, Gemini API key, or Agent Platform.
         signInHint:
-          "Open a Google Antigravity thread and follow the login prompt (Google account, Gemini API key, or Agent Platform).",
+          "Run `agy` (or `agy acp --login`) on this machine to sign in to Google Antigravity.",
         expiredHint:
-          "Your Google Antigravity session expired. Start a thread and re-authenticate in the login prompt.",
-        installUrl: "https://antigravity.google/docs/ide/extensions/zed",
+          "Your Google Antigravity session expired. Run `agy` (or `agy acp --login`) to re-authenticate.",
+        installUrl: "https://antigravity.google/docs/cli",
         iconTint: { light: "#4285F4", dark: "#8AB4F8" },
       },
       reasoningLevels: [
@@ -88,9 +87,7 @@ export default async function plugin(bb: BbPluginApi) {
         { id: "xhigh", label: "Extra High" },
         { id: "max", label: "Max" },
       ],
-      // Only listed on hosts where the binary is installed and the probe passes.
       experimental_visibility: "installed",
-      // One probe per machine serves every workspace on it.
       models: { scope: "host" },
       maintenance: { health: true, usage: false, installation: false },
       capabilities: {
@@ -99,7 +96,6 @@ export default async function plugin(bb: BbPluginApi) {
         supportsManualCompaction: false,
         supportsThreadArchive: false,
         supportsThreadRename: false,
-        // The server advertises session list and resume but no fork.
         fork: "none",
         permissionModes: ["accept-edits", "full"],
         reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
@@ -132,33 +128,20 @@ export default async function plugin(bb: BbPluginApi) {
 
   const host = bb.hosts.experimental_client({ contract: agyHostContract });
 
-
-
   bb.cli.register({
     name: "google-antigravity-acp",
-    summary: "Inspect and install the Google Antigravity ACP provider",
+    summary: "Inspect the Google Antigravity ACP provider backed by `agy acp`",
     commands: [
       {
         name: "status",
-        summary: "Show the ACP server binary location and provider id",
+        summary: "Show the resolved `agy` binary, version, and ACP handshake status",
         usage: "bb google-antigravity-acp status [--machine <id-or-name>] [--json]",
-      },
-      {
-        name: "install",
-        summary:
-          "Install the Antigravity ACP server on a machine: downloads the official zip, extracts it, links the binaries onto PATH, sets the sandbox helper path. Windows PATH mutation only with --update-path",
-        usage:
-          "bb google-antigravity-acp install [--machine <id-or-name>] [--force] [--install-dir <path>] [--bin-dir <path>] [--from <url-or-zip>] [--update-path] [--json]",
       },
     ],
     async run(argv, ctx) {
-      const cmd = argv[0];
-      if (cmd === "install") return installCmd(bb, argv.slice(1), ctx);
-      return statusCmd(bb, argv.slice(1), ctx);
+      return statusCmd(bb, argv.slice(argv[0] === "status" ? 1 : 0), ctx);
     },
   });
-
-  // ---- commands -----------------------------------------------------------
 
   async function statusCmd(
     bb: BbPluginApi,
@@ -168,115 +151,68 @@ export default async function plugin(bb: BbPluginApi) {
     const json = argv.includes("--json");
     const machine = flagValue(argv, "--machine");
     const current = await settings.get();
+    const cliCommand = current.cliCommand?.trim() || "agy";
     const target = await resolveTarget(bb, ctx, machine);
+
     let probe;
     if (target.hostId && !target.error) {
       try {
-        probe = await host.call("probe", null, { hostId: target.hostId, signal: ctx.signal });
+        probe = await host.call("probe", { cliCommand }, { hostId: target.hostId, signal: ctx.signal });
       } catch (err) {
-        probe = { ok: false, platform: "", arch: "", binaryPath: null, harnessPath: null, error: (err as Error).message };
+        probe = {
+          ok: false,
+          platform: "",
+          arch: "",
+          binaryPath: null,
+          version: null,
+          acpVersion: null,
+          error: (err as Error).message,
+        };
       }
     } else {
-      probe = await probeLocal();
+      probe = await probeLocal(cliCommand);
     }
+
     const currentLaunch = buildLaunchSpec(current);
     const status = {
       providerId: PROVIDER_ID,
       displayName: currentLaunch.displayName,
       command: currentLaunch.command,
       launchArgs: currentLaunch.args,
+      acceptEditsMode: current.acceptEditsMode?.trim() || "auto",
       target: target.hostId
         ? `${target.label}${probe.ok ? "" : " (probe failed)"}`
         : target.error ?? "this machine (server)",
       platform: [probe.platform, probe.arch].filter(Boolean).join(" ") || "unknown",
-      installDir: current.installDir,
-      binDir: current.binDir,
-      harnessPath: probe.harnessPath,
       resolvedBinary: probe.binaryPath,
+      version: probe.version,
+      acpVersion: probe.acpVersion,
       ready: probe.ok,
-      hint:
-        probe.ok
-          ? "Ready. The provider appears in `bb provider list` when the bridge health probe passes."
-          : probe.error ?? "Not installed. Run `bb google-antigravity-acp install`.",
+      hint: probe.ok
+        ? "Ready. `agy acp --stdio` answered initialize cleanly."
+        : probe.error ?? "Install the official Antigravity CLI (`agy` >= 1.5.0) and sign in with `agy`.",
     };
+
     return {
       exitCode: 0,
-      stdout: json ? JSON.stringify(status) : [
-        `providerId:    ${status.providerId}`,
-        `displayName:   ${status.displayName}`,
-        `command:       ${status.command}`,
-        `launchArgs:    ${status.launchArgs.length ? status.launchArgs.join(" ") : "(none)"}`,
-        `target:        ${status.target}`,
-        `platform:      ${status.platform}`,
-        `binary:        ${status.resolvedBinary ?? "NOT FOUND"}`,
-        `harnessPath:   ${status.harnessPath ?? "NOT FOUND"}`,
-        `installDir:    ${status.installDir}`,
-        `binDir:        ${status.binDir}`,
-        "",
-        status.hint,
-      ].join("\n"),
+      stdout: json
+        ? JSON.stringify(status)
+        : [
+            `providerId:      ${status.providerId}`,
+            `displayName:     ${status.displayName}`,
+            `command:         ${status.command} ${status.launchArgs.join(" ")}`,
+            `acceptEditsMode: ${status.acceptEditsMode}`,
+            `target:          ${status.target}`,
+            `platform:        ${status.platform}`,
+            `binary:          ${status.resolvedBinary ?? "NOT FOUND"}`,
+            `cliVersion:      ${status.version ?? "unknown"}`,
+            `acpVersion:      ${status.acpVersion ?? "unknown"}`,
+            "",
+            status.hint,
+          ].join("\n"),
     };
   }
-
-  async function installCmd(
-    bb: BbPluginApi,
-    argv: string[],
-    ctx: PluginCliContext,
-  ): Promise<{ exitCode: number; stdout: string; stderr?: string }> {
-    const json = argv.includes("--json");
-    const force = argv.includes("--force");
-    const updatePath = argv.includes("--update-path");
-    const machine = flagValue(argv, "--machine");
-    const installDirFlag = flagValue(argv, "--install-dir");
-    const binDirFlag = flagValue(argv, "--bin-dir");
-    const source = flagValue(argv, "--from");
-    const current = await settings.get();
-    const installDir = installDirFlag ?? (current.installDir?.trim() || "~/.local/opt/agy-acp-server");
-    const binDir = binDirFlag ?? (current.binDir?.trim() || "~/.local/bin");
-
-    const target = await resolveTarget(bb, ctx, machine);
-    if (target.error) return finish(json, null, target.error);
-
-    let result: InstallResult;
-    let where: string;
-    try {
-      if (target.hostId) {
-        where = `${target.label} (${target.hostId})`;
-        result = await host.call(
-          "install",
-          { installDir, binDir, force, updatePath, source },
-          { hostId: target.hostId, signal: ctx.signal },
-        );
-      } else {
-        where = "this machine (server-local)";
-        result = await runInstall({ installDir, binDir, force, updatePath, source });
-      }
-    } catch (err) {
-      return finish(json, null, `Install failed: ${(err as Error).message}`);
-    }
-
-    if (!result.ok) return finish(json, result, result.error ?? "Install failed");
-
-    const lines = [
-      result.alreadyInstalled ? "Already installed — links refreshed." : "Installed.",
-      `target:       ${where}`,
-      `platform:     ${result.platform} ${result.arch} (${result.distKey})`,
-      `source:       ${result.url}`,
-      `installDir:   ${result.installDir}`,
-      `binDir:       ${result.binDir}`,
-      `binary:       ${result.binaryPath ?? "NOT FOUND"}`,
-      `harnessPath:  ${result.harnessPath ?? "NOT FOUND"}`,
-      `launchArgs:   ${result.args.length ? result.args.join(" ") : "(none)"}`,
-    ];
-    for (const note of result.notes) lines.push(`  - ${note}`);
-    lines.push("");
-    lines.push("Next: `bb google-antigravity-acp status`, then `bb provider list` (the provider appears once the health probe passes).");
-
-    return finish(json, result, null, lines.join("\n"));
-  }
 }
-
-// ---- helpers --------------------------------------------------------------
 
 function flagValue(argv: string[], flag: string): string | undefined {
   const i = argv.indexOf(flag);
@@ -306,16 +242,4 @@ async function resolveTarget(
     }
   }
   return { hostId: null, label: "this machine (server)" };
-}
-
-function finish(
-  json: boolean,
-  result: InstallResult | null,
-  error: string | null,
-  text?: string,
-): { exitCode: number; stdout: string } {
-  if (json) {
-    return { exitCode: error ? 1 : 0, stdout: JSON.stringify({ ok: !error, error, result }) };
-  }
-  return { exitCode: error ? 1 : 0, stdout: error ?? text ?? "" };
 }

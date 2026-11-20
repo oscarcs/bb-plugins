@@ -20,7 +20,8 @@
     "host.ts",
     "model-utils.ts",
     "contract.ts",
-    "install.ts",
+    "probe.ts",
+    "proxy-script.ts",
     "tests/**/*.ts"
   ]
 }
