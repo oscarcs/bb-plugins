@@ -9,9 +9,10 @@ import {
   experimental_acpProviderBridge,
 } from "@get-bb/plugin-sdk/provider-bridge/acp";
 import { experimental_defineHostEntry } from "@get-bb/plugin-sdk/host";
-import { agyHostContract } from "./contract.js";
+import { agyHostContract, type UsageReading } from "./contract.js";
 import { probeLocal, resolveAgyBinary } from "./probe.js";
 import { renderAgyAcpProxyScript } from "./proxy-script.js";
+import { collectUsage } from "./usage.js";
 import {
   normalizeModelId,
   normalizeEffort,
@@ -429,11 +430,73 @@ export const experimental_providerBridge = {
   },
 };
 
+const USAGE_CACHE_TTL_MS = 120_000;
+let cachedUsage: { cliCommand: string; reading: UsageReading } | undefined;
+let pendingUsage: { cliCommand: string; promise: Promise<UsageReading> } | undefined;
+
 export default experimental_defineHostEntry({
   contract: agyHostContract,
   handlers: {
     probe: async (params) => {
       return probeLocal(params.cliCommand ?? "agy");
+    },
+    readUsage: async ({ cliCommand, refresh }, context) => {
+      const cmd = cliCommand?.trim() || "agy";
+      if (pendingUsage && pendingUsage.cliCommand === cmd) {
+        return pendingUsage.promise;
+      }
+      if (
+        !refresh &&
+        cachedUsage &&
+        cachedUsage.cliCommand === cmd &&
+        cachedUsage.reading.observedAt !== null &&
+        Date.now() - cachedUsage.reading.observedAt < USAGE_CACHE_TTL_MS
+      ) {
+        return cachedUsage.reading;
+      }
+      const promise = (async (): Promise<UsageReading> => {
+        try {
+          const cwd = path.join(context.experimental_paths.dataDir, "usage-workspace");
+          fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
+          const usage = await collectUsage({
+            cliCommand: cmd,
+            cwd,
+            signal: AbortSignal.any([context.signal, context.lifecycle.signal]),
+          });
+          if (usage.status === "ok") {
+            const reading: UsageReading = {
+              accountKey: null,
+              observedAt: Date.now(),
+              usage,
+            };
+            cachedUsage = { cliCommand: cmd, reading };
+            return reading;
+          }
+          return {
+            accountKey: null,
+            observedAt: cachedUsage?.cliCommand === cmd ? cachedUsage.reading.observedAt : null,
+            usage,
+          };
+        } catch (error) {
+          return {
+            accountKey: null,
+            observedAt: cachedUsage?.cliCommand === cmd ? cachedUsage.reading.observedAt : null,
+            usage: {
+              status: "error",
+              plan: null,
+              accountEmail: null,
+              planLabel: null,
+              message: error instanceof Error ? error.message : "Unable to read `agy /usage`.",
+            },
+          };
+        }
+      })().finally(() => {
+        if (pendingUsage?.promise === promise) {
+          pendingUsage = undefined;
+        }
+      });
+      pendingUsage = { cliCommand: cmd, promise };
+      return promise;
     },
   },
 });

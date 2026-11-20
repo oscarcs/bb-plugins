@@ -22,6 +22,7 @@
     "contract.ts",
     "probe.ts",
     "proxy-script.ts",
+    "usage.ts",
     "tests/**/*.ts"
   ]
 }

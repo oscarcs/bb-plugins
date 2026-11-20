@@ -1,27 +1,30 @@
 {
   "name": "bb-plugin-google-antigravity-acp",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test tests/model-utils.test.ts test/proxy.test.mjs test/probe.test.mjs test/first-turn.test.mjs",
+    "test": "node --import tsx --test tests/model-utils.test.ts test/proxy.test.mjs test/probe.test.mjs test/first-turn.test.mjs test/usage.test.mjs",
     "build": "bb plugin build"
   },
   "engines": {
-    "bb": ">=0.42",
-    "bbPluginSdk": ">=0.4.45"
+    "bb": ">=0.46",
+    "bbPluginSdk": ">=0.6.49"
   },
   "bb": {
     "name": "Google Antigravity (ACP)",
-    "description": "Run bb threads on Google Antigravity through the official Antigravity CLI (`agy acp --stdio`) with per-model reasoning levels, multimodal file viewing, BB runtime directory access, Auto mode OS sandboxing, and unsandboxed Full access mode.",
+    "description": "Run bb threads on Google Antigravity through the official Antigravity CLI (`agy acp --stdio`) with per-model reasoning levels, multimodal file viewing, BB runtime directory access, Auto mode OS sandboxing, unsandboxed Full access mode, and Provider Usage quota bars.",
     "branding": {
       "icon": "./icons/google-antigravity.svg"
     },
     "server": "./server.ts",
-    "host": "./host.ts"
+    "host": "./host.ts",
+    "skills": [
+      "skills"
+    ]
   },
   "dependencies": {
-    "@get-bb/plugin-sdk": "^0.4.50",
+    "@get-bb/plugin-sdk": "0.6.157",
     "zod": "^4.3.6"
   },
   "devDependencies": {

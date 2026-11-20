@@ -5,6 +5,7 @@ Runs **Google Antigravity** threads in [bb](https://getbb.app) through the offic
 ## Features
 
 - **Native `agy acp --stdio` backend**: Single Go binary, fast startup, auto-updated by `agy`, native multimodal image viewing (both pasted images and on-disk image files), and native context-window `usage_update` notifications.
+- **Provider Usage quota bars**: Reports Antigravity account quotas (Gemini, Claude & GPT, Gemini 4 Argon, and any future groups) directly to BB's **Provider Usage** panel via `agy -p "/usage" --output-format json` — zero model turns, exact UTC reset timestamps, 2-minute in-memory cache, and no PTY/Python scraping.
 - **Full dynamic model & reasoning catalog**: Discovers every model available to your account (Gemini 4 Neon/Argon/Hydrogen, Orchestrator, Gemini 3.8 Flash, Claude, GPT-OSS) and probes each model's exact `thought_level` options (`low`, `medium`, `high`, `xhigh`, or none).
 - **Permission modes**:
   - **Accept edits**: Applies `acceptEditsMode` (default `auto` — approves workspace edits, runs shell commands inside the OS terminal sandbox, and reviews commands that leave the sandbox; falls back to `accept-edits` if `auto` isn't available on the account). Can also be set to `accept-edits` (no sandbox) or `default`.
@@ -24,6 +25,7 @@ agy --version
 ```sh
 bb plugin install https://github.com/oscarcs/bb-plugins.git --plugin google-antigravity-acp
 bb google-antigravity-acp status
+bb google-antigravity-acp usage
 ```
 
 ## Settings

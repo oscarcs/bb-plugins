@@ -1,9 +1,19 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type {
   BbPluginApi,
   PluginCliContext,
 } from "@get-bb/plugin-sdk";
-import { agyHostContract } from "./contract.js";
+import {
+  agyHostContract,
+  USAGE_GET,
+  USAGE_LIST,
+  usageSourceContract,
+  type UsageReading,
+} from "./contract.js";
 import { probeLocal } from "./probe.js";
+import { collectUsage } from "./usage.js";
 
 const PROVIDER_ID = "acp-antigravity";
 
@@ -128,20 +138,157 @@ export default async function plugin(bb: BbPluginApi) {
 
   const host = bb.hosts.experimental_client({ contract: agyHostContract });
 
+  bb.rpc.register(
+    usageSourceContract,
+    {
+      [USAGE_LIST]: async () => ({
+        resources: (await bb.sdk.hosts.list())
+          .filter((h) => h.status === "connected" && h.type !== "ephemeral")
+          .map((h) => ({
+            accountKey: null,
+            id: h.id,
+            providerId: PROVIDER_ID,
+            label: "Antigravity",
+            scope: {
+              kind: "host" as const,
+              hostId: h.id,
+              hostName: h.name,
+            },
+          })),
+      }),
+      [USAGE_GET]: async ({ resourceId, refresh }) => {
+        const hosts = await bb.sdk.hosts.list();
+        if (
+          !hosts.some(
+            (h) => h.id === resourceId && h.status === "connected" && h.type !== "ephemeral",
+          )
+        ) {
+          throw new Error("Usage host is no longer connected.");
+        }
+        const current = await settings.get();
+        const cliCommand = current.cliCommand?.trim() || "agy";
+        return host.call(
+          "readUsage",
+          { cliCommand, refresh },
+          { hostId: resourceId, timeoutMs: 25_000 },
+        );
+      },
+    },
+    {
+      experimental_discoverable: true,
+      experimental_description:
+        'Antigravity account quotas collected via `agy -p "/usage" --output-format json`.',
+    },
+  );
+
   bb.cli.register({
     name: "google-antigravity-acp",
-    summary: "Inspect the Google Antigravity ACP provider backed by `agy acp`",
+    summary: "Inspect the Google Antigravity ACP provider and account quotas",
     commands: [
       {
         name: "status",
         summary: "Show the resolved `agy` binary, version, and ACP handshake status",
         usage: "bb google-antigravity-acp status [--machine <id-or-name>] [--json]",
       },
+      {
+        name: "usage",
+        summary: "Read Antigravity quota usage via `agy -p \"/usage\" --output-format json`",
+        usage: "bb google-antigravity-acp usage [--machine <id-or-name>] [--refresh] [--json]",
+      },
     ],
     async run(argv, ctx) {
+      if (argv[0] === "usage") {
+        return usageCmd(bb, argv.slice(1), ctx);
+      }
       return statusCmd(bb, argv.slice(argv[0] === "status" ? 1 : 0), ctx);
     },
   });
+
+  async function usageCmd(
+    bb: BbPluginApi,
+    argv: string[],
+    ctx: PluginCliContext,
+  ): Promise<{ exitCode: number; stdout: string }> {
+    const json = argv.includes("--json");
+    const refresh = argv.includes("--refresh");
+    const machine = flagValue(argv, "--machine");
+    const current = await settings.get();
+    const cliCommand = current.cliCommand?.trim() || "agy";
+    const target = await resolveTarget(bb, ctx, machine);
+
+    let reading: UsageReading;
+    if (target.hostId && !target.error) {
+      try {
+        reading = await host.call(
+          "readUsage",
+          { cliCommand, refresh },
+          { hostId: target.hostId, timeoutMs: 25_000, signal: ctx.signal },
+        );
+      } catch (err) {
+        reading = {
+          accountKey: null,
+          observedAt: null,
+          usage: {
+            status: "error",
+            plan: null,
+            accountEmail: null,
+            planLabel: null,
+            message: (err as Error).message,
+          },
+        };
+      }
+    } else {
+      try {
+        const cwd = path.join(os.homedir(), ".bb", "plugins", "google-antigravity-acp", "usage-workspace");
+        fs.mkdirSync(cwd, { recursive: true, mode: 0o700 });
+        const usage = await collectUsage({ cliCommand, cwd, signal: ctx.signal });
+        reading = {
+          accountKey: null,
+          observedAt: usage.status === "ok" ? Date.now() : null,
+          usage,
+        };
+      } catch (err) {
+        reading = {
+          accountKey: null,
+          observedAt: null,
+          usage: {
+            status: "error",
+            plan: null,
+            accountEmail: null,
+            planLabel: null,
+            message: (err as Error).message,
+          },
+        };
+      }
+    }
+
+    if (json) {
+      return { exitCode: reading.usage.status === "ok" ? 0 : 1, stdout: JSON.stringify(reading) };
+    }
+
+    if (reading.usage.status !== "ok") {
+      const detail =
+        reading.usage.status === "error"
+          ? reading.usage.message
+          : reading.usage.status === "not_installed"
+            ? `\`${cliCommand}\` is not installed on this host.`
+            : "Not signed in. Run `agy` (or `agy acp --login`) to sign in.";
+      return {
+        exitCode: 1,
+        stdout: `target: ${target.label || target.error || "this machine"}\nstatus: ${reading.usage.status}\n${detail}`,
+      };
+    }
+
+    const lines = [
+      `target: ${target.label || "this machine (server)"}`,
+      ...reading.usage.windows.map((w) => {
+        const pct = `${w.usedPercent.toFixed(1).replace(/\.0$/, "")}% used`;
+        const reset = w.resetsAt ? `resets ${w.resetsAt}` : "quota available";
+        return `  ${w.label.padEnd(26)} ${pct.padEnd(12)} ${reset}`;
+      }),
+    ];
+    return { exitCode: 0, stdout: lines.join("\n") };
+  }
 
   async function statusCmd(
     bb: BbPluginApi,
