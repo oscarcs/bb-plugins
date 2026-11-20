@@ -1,6 +1,6 @@
 {
   "name": "bb-plugin-google-antigravity-acp",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",

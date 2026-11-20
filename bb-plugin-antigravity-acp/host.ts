@@ -389,6 +389,8 @@ export const experimental_providerBridge = {
             const nextEnv: Record<string, string> = {
               ...(launchSpec.env ?? {}),
               AGY_CLI_COMMAND: cliCommand,
+              // The bridge strips Electron runtime flags from the inherited environment.
+              ...(process.versions.electron ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
             };
 
             if (permissionMode === "full") {

@@ -47,9 +47,12 @@ function getBbAdditionalDirectories() {
   return unique;
 }
 
+// Only the proxy needs Electron to act as Node.
+const childEnv = { ...process.env };
+delete childEnv.ELECTRON_RUN_AS_NODE;
 const child = spawn(cliCommand, ["acp", "--stdio", ...forwardedArgs], {
   stdio: ["pipe", "pipe", "pipe"],
-  env: { ...process.env },
+  env: childEnv,
 });
 
 child.stderr.pipe(process.stderr);
