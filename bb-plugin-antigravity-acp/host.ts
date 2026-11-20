@@ -359,26 +359,30 @@ export const experimental_providerBridge = {
         if (
           parsed.method === "thread/start" ||
           parsed.method === "thread/resume" ||
-          parsed.method === "thread/fork"
+          parsed.method === "thread/fork" ||
+          parsed.method === "turn/start"
         ) {
           if (!parsed.params.options) {
             parsed.params.options = {};
           }
           const launchSpec = parsed.params?.options?.providerOptions?.acpLaunchSpec;
-          if (!isInitialized) {
-            loadFromDiskCache(launchSpec?.env);
-            if (!isInitialized && launchSpec) {
-              await refreshModels(launchSpec);
+          if (parsed.method !== "turn/start") {
+            if (!isInitialized) {
+              loadFromDiskCache(launchSpec?.env);
+              if (!isInitialized && launchSpec) {
+                await refreshModels(launchSpec);
+              }
             }
+
+            const resolvedModel = resolveRawModelId(
+              parsed.params.options.model,
+              parsed.params.options.reasoningLevel,
+              activeCatalog,
+            );
+            parsed.params.options.model = resolvedModel;
           }
 
-          const resolvedModel = resolveRawModelId(
-            parsed.params.options.model,
-            parsed.params.options.reasoningLevel,
-            activeCatalog,
-          );
-          parsed.params.options.model = resolvedModel;
-
+          // The bridge may relaunch the session with the first turn's environment.
           if (launchSpec && typeof launchSpec === "object") {
             const cliCommand =
               resolveAgyBinary(typeof launchSpec.command === "string" ? launchSpec.command : "agy") ??
